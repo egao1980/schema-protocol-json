@@ -11,3 +11,7 @@
              (format s "Unresolved JSON Schema $ref ~S~@[: ~A~]"
                      (json-schema-ref-error-ref c)
                      (json-schema-error-message c)))))
+
+(define-condition json-schema-validation-error (schema-validation-error)
+  ()
+  (:documentation "Instance failed JSON Schema validation. ISSUES use schema-issue loc paths."))

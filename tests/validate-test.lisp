@@ -1,0 +1,70 @@
+(in-package #:schema-protocol-json/tests)
+
+(deftest validate-mcp-tool-schema
+  (let ((schema (%ht "type" "object"
+                     "required" #("msg")
+                     "properties" (%ht "msg" (%ht "type" "string"))
+                     "additionalProperties" nil)))
+    (ok (valid-instance-p schema (%ht "msg" "ok")))
+    (ng (valid-instance-p schema (%ht)))
+    (ng (valid-instance-p schema (%ht "msg" 1)))
+    (ng (valid-instance-p schema (%ht "msg" "ok" "x" 1)))
+    (ok (valid-instance-p schema '(:msg "ok")))
+    (ok (signals (validate-instance schema (%ht "msg" 1))
+                 'json-schema-validation-error))))
+
+(deftest validate-draft07-keywords
+  (ok (valid-instance-p (%ht "type" "integer" "minimum" 0) 3))
+  (ng (valid-instance-p (%ht "type" "integer" "minimum" 0) -1))
+  (ok (valid-instance-p (%ht "type" "string" "pattern" "^a+$") "aaa"))
+  (ng (valid-instance-p (%ht "type" "string" "pattern" "^a+$") "ab"))
+  (ok (valid-instance-p (%ht "enum" #("a" "b")) "a"))
+  (ok (valid-instance-p (%ht "const" :null) :null))
+  (ok (valid-instance-p t "anything"))
+  (ng (valid-instance-p nil "anything"))
+  (ok (valid-instance-p (%ht "anyOf" (vector (%ht "type" "string")
+                                            (%ht "type" "integer")))
+                       1))
+  (ng (valid-instance-p (%ht "oneOf" (vector (%ht "type" "number")
+                                            (%ht "type" "integer")))
+                       1))
+  (ok (valid-instance-p (%ht "not" (%ht "type" "string")) 1))
+  (let ((schema (%ht "if" (%ht "type" "integer")
+                     "then" (%ht "minimum" 10)
+                     "else" (%ht "type" "string"))))
+    (ok (valid-instance-p schema 11))
+    (ng (valid-instance-p schema 3))
+    (ok (valid-instance-p schema "x")))
+  (ok (valid-instance-p (%ht "type" "array"
+                            "items" (%ht "type" "integer")
+                            "minItems" 1)
+                       #(1 2)))
+  (ng (valid-instance-p (%ht "type" "array" "uniqueItems" t) #(1 1)))
+  (ok (valid-instance-p (%ht "type" "object"
+                            "patternProperties" (%ht "^x-" (%ht "type" "integer"))
+                            "additionalProperties" nil)
+                       (%ht "x-a" 1)))
+  (ng (valid-instance-p (%ht "type" "object"
+                            "patternProperties" (%ht "^x-" (%ht "type" "integer"))
+                            "additionalProperties" nil)
+                       (%ht "y" 1))))
+
+(deftest validate-local-ref
+  (let ((schema (%ht "definitions" (%ht "id" (%ht "type" "integer"))
+                     "properties" (%ht "n" (%ht "$ref" "#/definitions/id"))
+                     "required" #("n"))))
+    (ok (valid-instance-p schema (%ht "n" 3)))
+    (ng (valid-instance-p schema (%ht "n" "x"))))
+  (let ((schema (%ht "$defs" (%ht "addr" (%ht "type" "object"
+                                             "required" #("city")
+                                             "properties" (%ht "city" (%ht "type" "string"))))
+                     "properties" (%ht "home" (%ht "$ref" "#/$defs/addr"))
+                     "required" #("home"))))
+    (ok (valid-instance-p schema (%ht "home" (%ht "city" "London"))))
+    (ng (valid-instance-p schema (%ht "home" (%ht))))))
+
+(deftest compile-validator-reuse
+  (let ((v (compile-validator (%ht "type" "string" "minLength" 2))))
+    (ok (json-schema-validator-p v))
+    (ok (valid-instance-p v "ab"))
+    (ng (valid-instance-p v "a"))))

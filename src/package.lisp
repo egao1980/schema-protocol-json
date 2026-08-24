@@ -14,6 +14,7 @@
                 #:schema-class
                 #:schema-object
                 #:schema-class-extra
+                #:schema-extra-policy
                 #:schema-class-key-style
                 #:schema-class-computes
                 #:schema-class-tag
@@ -40,7 +41,12 @@
                 #:slot-format
                 #:slot-description
                 #:style-key
-                #:json-schema)
+                #:json-schema
+                #:schema-validation-error
+                #:schema-validation-error-issues
+                #:make-schema-issue
+                #:schema-issue-path
+                #:schema-issue-message)
   (:export #:json-schema-error
            #:json-schema-error-message
            #:json-schema-ref-error
@@ -52,6 +58,12 @@
            #:parse-document
            #:emit
            #:compile-schema
+           #:compile-validator
+           #:validate-instance
+           #:valid-instance-p
+           #:json-schema-validator
+           #:json-schema-validator-p
+           #:json-schema-validation-error
            #:draft-uri))
 
 (in-package #:schema-protocol-json)

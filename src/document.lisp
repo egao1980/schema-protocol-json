@@ -55,6 +55,9 @@
 (defun table-from-source (source &key format)
   (let ((source (%maybe-decode source format)))
     (cond
+      ;; JSON Schema boolean: true accepts all, false rejects all.
+      ((eq source t) t)
+      ((null source) nil)
       ((hash-table-p source) (stringify-json source))
       ((typep source 'json-schema-document) (json-schema-table source))
       ((or (stringp source) (listp source)) (stringify-json source))
