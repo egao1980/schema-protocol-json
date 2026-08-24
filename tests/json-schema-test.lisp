@@ -82,3 +82,44 @@
     (ok (equal "object" (gethash "type" (json-schema-table parsed))))
     (let ((home (slot-value obj (intern "HOME" (symbol-package (class-name class))))))
       (ok (equal "London" (slot-value home (intern "CITY" (symbol-package (class-name (class-of home))))))))))
+
+(deftest emit-tagged-union
+  (defschema %js-shape ()
+    (kind keyword)
+    (:tag kind))
+  (defschema %js-circ (%js-shape)
+    (kind (eql :circ) :default :circ)
+    (r number))
+  (defschema %js-rect (%js-shape)
+    (kind (eql :rect) :default :rect)
+    (w number))
+  (let* ((js (emit '%js-shape))
+         (disc (gethash "discriminator" js))
+         (one-of (gethash "oneOf" js)))
+    (ok (vectorp one-of))
+    (ok (equal "kind" (gethash "propertyName" disc)))
+    (ok (equal "#/$defs/%js-circ" (gethash "circ" (gethash "mapping" disc))))))
+
+(deftest compile-discriminator
+  (let* ((circ (%ht "type" "object"
+                    "properties" (%ht "kind" (%ht "const" "circ")
+                                      "r" (%ht "type" "number"))
+                    "required" #("kind" "r")
+                    "additionalProperties" nil))
+         (rect (%ht "type" "object"
+                    "properties" (%ht "kind" (%ht "const" "rect")
+                                      "w" (%ht "type" "number"))
+                    "required" #("kind" "w")
+                    "additionalProperties" nil))
+         (doc (%ht "oneOf" (vector (%ht "$ref" "#/$defs/circ")
+                                   (%ht "$ref" "#/$defs/rect"))
+                   "discriminator" (%ht "propertyName" "kind"
+                                        "mapping" (%ht "circ" "#/$defs/circ"
+                                                       "rect" "#/$defs/rect"))
+                   "$defs" (%ht "circ" circ "rect" rect)))
+         (class (compile-schema doc :name 'compiled-shape))
+         (obj (schema-protocol:parse class (%ht "kind" "circ" "r" 1.5))))
+    (ok (schema-tag class))
+    (ok (equal "circ" (string-downcase (symbol-name (class-name (class-of obj))))))
+    (ok (signals (schema-protocol:parse class (%ht "kind" "nope"))
+                 'schema-validation-error))))

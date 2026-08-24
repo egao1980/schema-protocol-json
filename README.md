@@ -33,7 +33,7 @@ Same slot later: `schema-protocol-xsd`, …
 | **fisxoj/json-schema** | — | Validate data *against* a document (different job) |
 | **Pydantic** | `model_json_schema` checklist | Import-as-Python-class DX |
 
-**Wave-1:** local `$ref` (`#/$defs/…`, `#/definitions/…`) only. `pattern` strings are ignored on compile (`schema-protocol` patterns are function designators).
+**Wave-1:** local `$ref` (`#/$defs/…`, `#/definitions/…`) only. `pattern` strings are ignored on compile (`schema-protocol` patterns are function designators). Tagged schemas emit OpenAPI `oneOf` + `discriminator`; compile rebuilds `:tag` + subclasses.
 
 ## License
 

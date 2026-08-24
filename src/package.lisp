@@ -16,8 +16,15 @@
                 #:schema-class-extra
                 #:schema-class-key-style
                 #:schema-class-computes
+                #:schema-class-tag
                 #:schema-error
                 #:find-schema
+                #:schema-slot
+                #:schema-tag
+                #:schema-variants
+                #:variant-tag-values
+                #:enum-of
+                #:enum-members
                 #:finalize-schema
                 #:type-kind
                 #:type-args
