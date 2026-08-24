@@ -24,11 +24,18 @@
   #-sbcl
   (funcall fn))
 
-(unless (asdf:find-system "cl-repository-client" nil)
-  (asdf:initialize-source-registry
-   `(:source-registry
-     (:tree (:home ".local/share/cl-systems/"))
-     :inherit-configuration)))
+;;; Legacy publish-checkout.yml installs Quicklisp + oras-pulls the packager
+;;; image into ~/.local/share/cl-systems. QL supplies ironclad/babel/…;
+;;; do NOT ql:quickload the packager (it needs unpublished http-protocol).
+(let ((ql (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname))))
+  (when (probe-file ql)
+    (load ql)))
+
+(asdf:initialize-source-registry
+ `(:source-registry
+   (:tree (:home ".local/share/cl-systems/"))
+   (:tree ,(uiop:getcwd))
+   :inherit-configuration))
 
 (%call-with-publish-muffles (lambda () (asdf:load-system "cl-repository-client")))
 
