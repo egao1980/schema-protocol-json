@@ -514,7 +514,7 @@
                            (with-path ctx i (lambda () (vfail ctx "additionalItems"))))
                           ((eq ai t) nil)
                           (t (with-path ctx i
-                               (lambda () (check-schema ctx ai (aref instance i)))))))))))
+                               (lambda () (check-schema ctx ai (aref instance i))))))))))))
     (when (nth-value 1 (gethash "contains" schema))
       (unless (loop for i from 0 below (length instance)
                     thereis (silent-valid-p ctx contains (aref instance i)))
