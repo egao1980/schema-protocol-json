@@ -1,0 +1,213 @@
+(in-package #:schema-protocol-json)
+
+(defvar *generated-package* (find-package '#:schema-protocol-json.generated))
+
+(defstruct compile-ctx
+  (package *generated-package*)
+  (root-name nil)
+  (root-node nil)
+  (defs (make-hash-table :test #'equal))
+  (filled (make-hash-table :test #'eq)))
+
+(defun %sanitize (string)
+  (let ((s (substitute #\- #\_ (substitute #\- #\Space (string string)))))
+    (if (plusp (length s))
+        (string-upcase s)
+        "SCHEMA")))
+
+(defun %name-symbol (name ctx)
+  (etypecase name
+    (symbol
+     (if (eq (symbol-package name) (compile-ctx-package ctx))
+         name
+         (intern (symbol-name name) (compile-ctx-package ctx))))
+    (string (intern (%sanitize name) (compile-ctx-package ctx)))))
+
+(defun %js-get (table key)
+  (and (hash-table-p table) (gethash key table)))
+
+(defun register-defs (ctx table)
+  (flet ((add (defs)
+           (when (hash-table-p defs)
+             (maphash (lambda (k v)
+                        (setf (gethash k (compile-ctx-defs ctx)) v))
+                      defs))))
+    (add (%js-get table "$defs"))
+    (add (%js-get table "definitions"))))
+
+(defun resolve-ref (ref ctx)
+  (cond
+    ((or (string= ref "#") (string= ref "#/"))
+     (compile-ctx-root-name ctx))
+    ((and (> (length ref) 8) (string= ref "#/$defs/" :end1 8))
+     (%name-symbol (subseq ref 8) ctx))
+    ((and (> (length ref) 15) (string= ref "#/definitions/" :end1 14))
+     (%name-symbol (subseq ref 14) ctx))
+    (t (error 'json-schema-ref-error
+              :ref ref
+              :message "only local #/$defs/… and #/definitions/… in wave-1"))))
+
+(defun normalize-type-list (typ)
+  (cond
+    ((null typ) nil)
+    ((stringp typ) (list typ))
+    ((and (vectorp typ) (not (stringp typ)))
+     (map 'list #'identity typ))
+    ((listp typ) typ)
+    (t (list (princ-to-string typ)))))
+
+(defun extra-policy (node)
+  (unless (hash-table-p node)
+    (return-from extra-policy :allow))
+  (multiple-value-bind (ap present) (gethash "additionalProperties" node)
+    (cond
+      ((not present) :allow)
+      ((eq ap nil) :forbid)
+      ((eq ap t) :allow)
+      (t :allow))))
+
+(defun required-set (node)
+  (let ((req (%js-get node "required"))
+        (out (make-hash-table :test #'equal)))
+    (when req
+      (map nil (lambda (k) (setf (gethash (stringify-key k) out) t)) req))
+    out))
+
+(defun %ensure-shell (ctx name)
+  (let ((sym (%name-symbol name ctx)))
+    (or (find-class sym nil)
+        (ensure-class sym
+                      :metaclass (find-class 'schema-class)
+                      :direct-superclasses (list (find-class 'schema-object))
+                      :direct-slots '()))))
+
+(defun node-type-spec (node ctx &key name-hint)
+  (cond
+    ((eq node t) t)
+    ((null node) '(member))
+    ((not (hash-table-p node))
+     (error 'json-schema-error
+            :message (format nil "expected schema object, got ~S" (type-of node))))
+    (t
+     (let ((ref (%js-get node "$ref")))
+       (if ref
+           (resolve-ref ref ctx)
+           (let ((const (%js-get node "const"))
+                 (enum (%js-get node "enum"))
+                 (any-of (or (%js-get node "anyOf") (%js-get node "oneOf")))
+                 (types (normalize-type-list (%js-get node "type"))))
+             (cond
+               (const `(eql ,const))
+               (enum `(member ,@(coerce enum 'list)))
+               (any-of
+                `(or ,@(map 'list (lambda (n) (node-type-spec n ctx :name-hint name-hint))
+                            (coerce any-of 'list))))
+               ((null types) t)
+               ((rest types)
+                `(or ,@(mapcar (lambda (ty)
+                                 (simple-type-spec ty node ctx :name-hint name-hint))
+                               types)))
+               (t (simple-type-spec (first types) node ctx :name-hint name-hint)))))))))
+
+(defun simple-type-spec (ty node ctx &key name-hint)
+  (let ((ty (string-downcase (string ty))))
+    (cond
+      ((string= ty "null") :null)
+      ((string= ty "string") 'string)
+      ((string= ty "boolean") 'boolean)
+      ((string= ty "integer")
+       (let ((lo (%js-get node "minimum"))
+             (hi (%js-get node "maximum")))
+         (if (or lo hi)
+             `(integer ,(or lo '*) ,(or hi '*))
+             'integer)))
+      ((or (string= ty "number") (string= ty "real"))
+       'number)
+      ((string= ty "array")
+       (let ((items (%js-get node "items")))
+         (if (hash-table-p items)
+             `(vector ,(node-type-spec items ctx
+                                       :name-hint (and name-hint (format nil "~A-item" name-hint))))
+             'vector)))
+      ((string= ty "object")
+       (if (%js-get node "properties")
+           (let ((n (or name-hint (gentemp "OBJ" (compile-ctx-package ctx)))))
+             (%ensure-shell ctx n)
+             (%fill-class ctx n node)
+             (%name-symbol n ctx))
+           'hash-table))
+      (t t))))
+
+(defun property-slot (prop-name node ctx required-p)
+  (let* ((sym (%name-symbol prop-name ctx))
+         (spec (node-type-spec node ctx :name-hint (format nil "~A" prop-name)))
+         (slot `(:name ,sym
+                 :type ,spec
+                 :initargs (,(intern (symbol-name sym) :keyword))
+                 :readers (,sym)
+                 :writers ((setf ,sym))
+                 :key ,(stringify-key prop-name)
+                 :required ,required-p
+                 :optional ,(not required-p))))
+    (flet ((opt (json-key initarg)
+             (let ((v (%js-get node json-key)))
+               (when v
+                 (setf slot (append slot (list initarg v)))))))
+      (opt "minLength" :min-length)
+      (opt "maxLength" :max-length)
+      (opt "minItems" :min-length)
+      (opt "maxItems" :max-length)
+      (opt "minimum" :minimum)
+      (opt "maximum" :maximum)
+      (opt "description" :description)
+      (let ((fmt (%js-get node "format")))
+        (when (stringp fmt)
+          (setf slot (append slot (list :format (intern (string-upcase fmt) :keyword))))))
+      (let ((default (%js-get node "default")))
+        (when default
+          (setf slot (append slot (list :initform default
+                                        :initfunction (constantly default)))))))
+    slot))
+
+(defun %fill-class (ctx name node)
+  (let ((sym (%name-symbol name ctx)))
+    (when (gethash sym (compile-ctx-filled ctx))
+      (return-from %fill-class (find-class sym)))
+    (setf (gethash sym (compile-ctx-filled ctx)) t)
+    (let* ((props (%js-get node "properties"))
+           (req (required-set node))
+           (slots '()))
+      (when (hash-table-p props)
+        (maphash (lambda (k v)
+                   (push (property-slot k v ctx (gethash (stringify-key k) req))
+                         slots))
+                 props))
+      (ensure-class sym
+                    :metaclass (find-class 'schema-class)
+                    :direct-superclasses (list (find-class 'schema-object))
+                    :direct-slots (nreverse slots)
+                    :extra (extra-policy node))
+      (find-class sym))))
+
+(defun compile-schema (source &key name (package *generated-package*) draft format)
+  "JSON Schema document → schema-class. NAME defaults to title or a generated symbol."
+  (declare (ignore draft))
+  (let* ((table (table-from-source source :format format))
+         (title (%js-get table "title"))
+         (name (or name
+                   (and title (%name-symbol title
+                                            (make-compile-ctx :package package)))
+                   (gentemp "SCHEMA" package)))
+         (ctx (make-compile-ctx :package package
+                                :root-name (%name-symbol name (make-compile-ctx :package package))
+                                :root-node table)))
+    (register-defs ctx table)
+    (%ensure-shell ctx (compile-ctx-root-name ctx))
+    (maphash (lambda (k v)
+               (declare (ignore v))
+               (%ensure-shell ctx k))
+             (compile-ctx-defs ctx))
+    (maphash (lambda (k v) (%fill-class ctx k v))
+             (compile-ctx-defs ctx))
+    (%fill-class ctx (compile-ctx-root-name ctx) table)
+    (find-class (compile-ctx-root-name ctx))))
