@@ -28,6 +28,7 @@
      :also-tests t
      :sources '(("schema-protocol" :oci)
                 ("closer-mop" :ql)
+                ("cl-ppcre" :ql)
                 ("rove" :ql)))))
 
 (format t "~&; ci: install phase done~%")
