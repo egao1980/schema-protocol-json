@@ -1,9 +1,7 @@
 ;;;; Publish this checkout to ghcr.io/egao1980/cl-systems via auto-package-spec.
 ;;;;
-;;;; No Quicklisp for packager/oci-client (QL has no http-protocol).
-;;;; Works with either:
-;;;;   - setup-client + ros (CL_SOURCE_REGISTRY already has the client)
-;;;;   - legacy yml that oras-pulls the packager image into ~/.local/share/cl-systems
+;;;; No Quicklisp. Packager + cl-oci-client come from OCI
+;;;; (egao1980/cl-repository :latest, then first-party HTTP stack from cl-systems).
 ;;;; Env: GITHUB_ACTOR, GITHUB_TOKEN, PKG_SYSTEM, optional PKG_VERSION /
 ;;;; PACKAGER_VERSION / OCI_NAMESPACE.
 
@@ -24,12 +22,6 @@
   #-sbcl
   (funcall fn))
 
-(unless (asdf:find-system "cl-repository-client" nil)
-  (asdf:initialize-source-registry
-   `(:source-registry
-     (:tree (:home ".local/share/cl-systems/"))
-     :inherit-configuration)))
-
 (%call-with-publish-muffles (lambda () (asdf:load-system "cl-repository-client")))
 
 (cl-repo:add-registry "https://ghcr.io" :namespace "egao1980/cl-repository" :priority :prepend)
@@ -45,9 +37,8 @@
          (cl-repo:ensure-systems "cl-repository-packager" :default-source :oci))
      (cl-repo:ensure-systems "cl-oci-client" :default-source :oci))))
 
-(when (find-package "CL-REPOSITORY-CLIENT/ASDF-INTEGRATION")
-  (cl-repository-client/asdf-integration:configure-asdf-source-registry)
-  (cl-repository-client/asdf-integration:load-system-init-files))
+(cl-repository-client/asdf-integration:configure-asdf-source-registry)
+(cl-repository-client/asdf-integration:load-system-init-files)
 
 (%call-with-publish-muffles
  (lambda ()
