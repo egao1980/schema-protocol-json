@@ -609,8 +609,8 @@
                  (when present
                    (unless (json-equal instance const)
                      (vfail ctx "const" instance))))
-               (let ((enum (gethash "enum" schema)))
-                 (when (or (json-array-p enum) (listp enum))
+               (multiple-value-bind (enum present) (gethash "enum" schema)
+                 (when present
                    (unless (loop for item across (coerce enum 'vector)
                                  thereis (json-equal instance item))
                      (vfail ctx "enum" instance))))
