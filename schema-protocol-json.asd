@@ -1,5 +1,5 @@
 (defsystem "schema-protocol-json"
-  :version "0.1.1"
+  :version "0.1.2"
   :description "JSON Schema parse/generate/validate for schema-protocol"
   :author "egao1980"
   :license "MIT"

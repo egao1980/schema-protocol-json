@@ -123,3 +123,21 @@
     (ok (equal "circ" (string-downcase (symbol-name (class-name (class-of obj))))))
     (ok (signals (schema-protocol:parse class (%ht "kind" "nope"))
                  'schema-validation-error))))
+
+(deftest format-registry
+  (defschema %reg-js ()
+    (name string))
+  (let ((via-gf (json-schema '%reg-js))
+        (via-reg (emit-schema '%reg-js :format :json)))
+    (ok (equal (gethash "type" via-gf) "object"))
+    (ok (equal (gethash "type" via-reg) "object"))
+    (ok (equalp (gethash "required" via-gf) (gethash "required" via-reg))))
+  (let ((class (parse-schema (%ht "type" "object"
+                                  "additionalProperties" nil
+                                  "required" #("name")
+                                  "properties" (%ht "name" (%ht "type" "string")))
+                             :format :json
+                             :name 'reg-compiled-js)))
+    (ok (schema-class-p class))
+    (ok (equal "Ada" (slot-value (schema-protocol:parse class (%ht "name" "Ada"))
+                                 (intern "NAME" (symbol-package (class-name class))))))))
