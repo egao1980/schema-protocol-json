@@ -1,6 +1,12 @@
 (defpackage #:schema-protocol-json.generated
   (:use))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (let ((pkg (find-package '#:schema-protocol)))
+    (dolist (name '("SCHEMA-FORMAT-BACKEND" "REGISTER-SCHEMA-FORMAT"
+                    "BACKEND-EMIT-SCHEMA" "BACKEND-PARSE-SCHEMA"))
+      (export (intern name pkg) pkg))))
+
 (defpackage #:schema-protocol-json
   (:use #:cl)
   (:nicknames #:stack-schema-json)
@@ -42,6 +48,10 @@
                 #:slot-description
                 #:style-key
                 #:json-schema
+                #:schema-format-backend
+                #:register-schema-format
+                #:backend-emit-schema
+                #:backend-parse-schema
                 #:schema-validation-error
                 #:schema-validation-error-issues
                 #:make-schema-issue

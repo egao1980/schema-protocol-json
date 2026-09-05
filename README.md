@@ -6,7 +6,7 @@ Same slot later: `schema-protocol-xsd`, …
 
 | System | Role | OCI |
 |--------|------|-----|
-| `schema-protocol-json` (`stack-schema-json`) | Draft-07 emit + load + compile → CLOS schema-class | **0.1.0** |
+| `schema-protocol-json` (`stack-schema-json`) | Draft-07 emit + load + compile → CLOS schema-class | **0.1.2** |
 
 `schema-protocol` owns models / validate / dump. This package owns **JSON Schema documents**.
 
@@ -14,13 +14,15 @@ Same slot later: `schema-protocol-xsd`, …
 (asdf:load-system "schema-protocol-json")
 
 (stack-schema-json:emit 'user)
-(stack-schema:json-schema 'user)   ; same, after this system is loaded
+(stack-schema:emit-schema 'user :format :json)
+(stack-schema:json-schema 'user)   ; same
 
-(let ((class (stack-schema-json:compile-schema
+(let ((class (stack-schema:parse-schema
               '(:type "object"
                 :required #("name")
                 :additional-properties nil
-                :properties (:name (:type "string"))))))
+                :properties (:name (:type "string")))
+              :format :json)))
   (stack-schema:parse class '(:name "Ada")))
 ```
 
