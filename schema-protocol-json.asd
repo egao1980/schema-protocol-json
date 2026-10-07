@@ -1,9 +1,9 @@
 (defsystem "schema-protocol-json"
-  :version "0.1.2"
+  :version "0.1.3"
   :description "JSON Schema parse/generate/validate for schema-protocol"
   :author "egao1980"
   :license "MIT"
-  :depends-on ("schema-protocol" "closer-mop" "cl-ppcre")
+  :depends-on ((:version "schema-protocol" "0.2.1") "closer-mop" "cl-ppcre")
   :serial t
   :pathname "src"
   :components ((:file "package")

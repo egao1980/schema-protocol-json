@@ -97,7 +97,7 @@
           (when (slot-is-required-p slot)
             (push key required)))))
     (dolist (cname (schema-class-computes class))
-      (let ((key (style-key cname (schema-class-key-style class)))
+      (let ((key (style-key cname (schema-key-style-policy class)))
             (ht (%js "readOnly" t)))
         (setf (gethash key props) ht)))
     (let ((ht (%js "type" "object")))
